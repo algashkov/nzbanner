@@ -60,6 +60,7 @@
     </div>
 
     <script>
+        // Определяем функцию checkRebates
         async function checkRebates() {
             const zip = document.getElementById('zipInput').value.trim();
             const errorMsg = document.getElementById('errorMsg');
@@ -93,7 +94,7 @@
                 let maxRebate = 0;
                 let totalRebates = 0;
                 data.productRebateDetails.forEach(product => {
-                    const amount = parseFloat(product.maxRebateAmountLabel?.replace(/[^\d.]/g, '') || 0;
+                    const amount = parseFloat(product.maxRebateAmountLabel?.replace(/[^\d.]/g, '')) || 0; // Исправлено
                     maxRebate = Math.max(maxRebate, amount);
                     totalRebates += product.rebatePrograms?.length || 0;
                 });
@@ -112,6 +113,7 @@
             }
         }
 
+        // Определяем функцию showRebateCenter
         function showRebateCenter() {
             const zip = document.getElementById('zipInput').value;
             alert(`Redirect to rebate center with ZIP: ${zip}`);
