@@ -10,18 +10,15 @@
             padding: 20px;
             font-family: Arial, sans-serif;
         }
-        
         .input-group {
             margin-bottom: 20px;
         }
-        
         input {
             padding: 10px;
             width: 200px;
             margin-right: 10px;
             border: 1px solid #ddd;
         }
-        
         button {
             padding: 10px 20px;
             background: #007bff;
@@ -29,50 +26,20 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            transition: background 0.3s;
         }
-        
-        button:hover {
-            background: #0056b3;
-        }
-        
         .banner {
             border: 1px solid #ddd;
             padding: 20px;
             margin-top: 20px;
             display: none;
-            background: #f8f9fa;
         }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            background: white;
-            padding: 20px;
-            width: 90%;
-            max-width: 800px;
-            margin: 30px auto;
-            border-radius: 8px;
-        }
-        
         #loading {
             display: none;
             color: #007bff;
             margin: 10px 0;
         }
-        
-        .error-message {
-            color: #dc3545;
-            margin: 10px 0;
+        .error {
+            color: red;
             display: none;
         }
     </style>
@@ -80,159 +47,76 @@
 <body>
     <div class="container">
         <div class="input-group">
-            <input type="text" id="zipInput" 
-                   placeholder="Enter ZIP/Postal Code"
-                   pattern="^(?:\d{5}(?:-\d{4})?|[A-Za-z]\d[A-Za-z] \d[A-Za-z]\d)$"
-                   title="Enter valid US ZIP or Canadian Postal Code">
-            <button onclick="checkRebates()">OK</button>
-            <div id="loading">Checking for rebates...</div>
-            <div class="error-message" id="errorMessage"></div>
+            <input type="text" id="zipInput" placeholder="Enter ZIP Code">
+            <button onclick="checkRebates()">Check Rebates</button>
+            <div id="loading">Loading...</div>
+            <div class="error" id="errorMsg"></div>
         </div>
-        
-        <!-- Баннер с информацией о скидках -->
         <div id="rebateBanner" class="banner">
             <h2>FIND REBATES</h2>
-            <p>Get up to $<span id="maxAmount">0</span> from 
-               <span id="totalRebates">0</span> Rebates in 
-               <span id="location">...</span></p>
-            <a href="#" onclick="showRebateCenter()" 
-               style="color: #007bff; text-decoration: underline;">
-               See Details or Change Location
-            </a>
-        </div>
-
-        <!-- Модальное окно Rebate Center -->
-        <div id="rebateModal" class="modal">
-            <div class="modal-content">
-                <ecr-rebate-center-widget id="rcWidget"></ecr-rebate-center-widget>
-                <button onclick="closeModal()" 
-                        style="margin-top: 15px;">
-                    Close
-                </button>
-            </div>
+            <p>Get up to $<span id="maxRebate">0</span> from <span id="totalRebates">0</span> rebates in <span id="location">...</span></p>
+            <a href="#" onclick="showRebateCenter()">See Details or Change Location</a>
         </div>
     </div>
-
-    <!-- Подключаем виджеты EcoRebates -->
-    <script src="https://static.ecorebates.com/widgets/noritz/widgets.js" async></script>
 
     <script>
         async function checkRebates() {
             const zip = document.getElementById('zipInput').value.trim();
-            const errorElement = document.getElementById('errorMessage');
-            const loadingElement = document.getElementById('loading');
-            
+            const errorMsg = document.getElementById('errorMsg');
+            const loading = document.getElementById('loading');
+
+            // Сброс состояний
+            errorMsg.style.display = 'none';
+            document.getElementById('rebateBanner').style.display = 'none';
+            loading.style.display = 'block';
+
             try {
-                // Сброс предыдущих состояний
-                errorElement.style.display = 'none';
-                document.getElementById('rebateBanner').style.display = 'none';
-                loadingElement.style.display = 'block';
+                // Используем прокси для обхода CORS
+                const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                const apiUrl = `${proxyUrl}https://noritz.ecorebates.com/api/search/noritz/productRebateDetails.json?zip=${zip}`;
 
-                // Валидация ввода
-                if(!zip) {
-                    throw new Error('Please enter ZIP/Postal Code');
-                }
-
-                // Проверка формата ZIP-кода
-                const zipRegex = /^(?:\d{5}(?:-\d{4})?|[A-Za-z]\d[A-Za-z] \d[A-Za-z]\d)$/i;
-                if(!zipRegex.test(zip)) {
-                    throw new Error('Invalid ZIP/Postal Code format');
-                }
-
-                // Определение страны
-                const country = zip.replace(/\s/g, '').length <= 5 ? 'US' : 'CA';
-                
-                // Формирование URL
-                const apiUrl = new URL('https://noritz.ecorebates.com/api/search/noritz/productRebateDetails.json');
-                apiUrl.searchParams.append('zip', zip);
-                if(country === 'CA') apiUrl.searchParams.append('c', 'CA');
-
-                console.log('Fetching:', apiUrl.toString()); // Отладка
-
-                const response = await fetch(apiUrl);
-                
-                // Проверка HTTP статуса
-                if(!response.ok) {
-                    throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                console.log('API Response:', data); // Отладка
-
-                // Проверка структуры ответа
-                if(!data) {
-                    throw new Error('Invalid API response');
-                }
-
-                if(data.error) {
-                    throw new Error(data.error.message || 'API returned an error');
-                }
-
-                // Проверка наличия данных о скидках
-                if(!data.productRebateDetails) {
-                    throw new Error('No rebates available for this location');
-                }
-
-                // Если productRebateDetails есть, но это пустой массив
-                if(Array.isArray(data.productRebateDetails)) {
-                    if(data.productRebateDetails.length === 0) {
-                        throw new Error('No rebates available for this location');
-                    }
-                } else {
-                    throw new Error('Invalid productRebateDetails format');
-                }
-
-                // Расчет показателей
-                let maxRebate = 0;
-                let totalRebates = 0;
-                
-                data.productRebateDetails.forEach(product => {
-                    try {
-                        const amountString = product.maxRebateAmountLabel?.replace(/[^\d.]/g, '') || '0';
-                        const amount = parseFloat(amountString) || 0;
-                        maxRebate = Math.max(maxRebate, amount);
-                        totalRebates += (product.rebatePrograms || []).length;
-                    } catch(e) {
-                        console.warn('Error processing product:', product);
+                const response = await fetch(apiUrl, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
                 });
 
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                
+                const data = await response.json();
+                console.log('API Response:', data);
+
+                if (data.error) throw new Error(data.error.message);
+                if (!data.productRebateDetails?.length) throw new Error('No rebates found');
+
+                // Расчет максимальной скидки и общего количества
+                let maxRebate = 0;
+                let totalRebates = 0;
+                data.productRebateDetails.forEach(product => {
+                    const amount = parseFloat(product.maxRebateAmountLabel?.replace(/[^\d.]/g, '') || 0;
+                    maxRebate = Math.max(maxRebate, amount);
+                    totalRebates += product.rebatePrograms?.length || 0;
+                });
+
                 // Обновление UI
-                document.getElementById('rebateBanner').style.display = 'block';
-                document.getElementById('maxAmount').textContent = maxRebate.toFixed(0);
+                document.getElementById('maxRebate').textContent = maxRebate;
                 document.getElementById('totalRebates').textContent = totalRebates;
-                document.getElementById('location').textContent = 
-                    data.area?.replace(/,? ?USA$/, '') || 'your area';
+                document.getElementById('location').textContent = data.area || 'your area';
+                document.getElementById('rebateBanner').style.display = 'block';
 
             } catch (error) {
-                console.error('Error:', error);
-                errorElement.textContent = error.message;
-                errorElement.style.display = 'block';
-                document.getElementById('rebateBanner').style.display = 'none';
+                errorMsg.textContent = error.message;
+                errorMsg.style.display = 'block';
             } finally {
-                loadingElement.style.display = 'none';
+                loading.style.display = 'none';
             }
         }
 
         function showRebateCenter() {
-            const zip = document.getElementById('zipInput').value.trim();
-            const widget = document.getElementById('rcWidget');
-            
-            // Обновляем виджет с текущим ZIP-кодом
-            if(zip) {
-                widget.setAttribute('zip', zip);
-            }
-            document.getElementById('rebateModal').style.display = 'block';
+            const zip = document.getElementById('zipInput').value;
+            alert(`Redirect to rebate center with ZIP: ${zip}`);
+            // Здесь можно реализовать открытие виджета EcoRebates
         }
-
-        function closeModal() {
-            document.getElementById('rebateModal').style.display = 'none';
-        }
-
-        // Обработчик нажатия Enter в поле ввода
-        document.getElementById('zipInput').addEventListener('keypress', (e) => {
-            if(e.key === 'Enter') checkRebates();
-        });
     </script>
 </body>
 </html>
