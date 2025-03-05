@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Noritz Rebates Finder</title>
+    <style>
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        input {
+            padding: 10px;
+            width: 200px;
+            margin-right: 10px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .banner {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 20px;
+            width: 80%;
+            max-width: 800px;
+            margin: 50px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="input-group">
+            <input type="text" id="zipInput" placeholder="Enter ZIP/Postal Code">
+            <button onclick="checkRebates()">OK</button>
+        </div>
+        
+        <!-- Баннер с информацией о скидках -->
+        <div id="rebateBanner" class="banner">
+            <h2>FIND REBATES</h2>
+            <p>Get up to $<span id="maxAmount">0</span> from <span id="totalRebates">0</span> Rebates in <span id="location">...</span></p>
+            <a href="#" onclick="showRebateCenter()">See Details or Change Location</a>
+        </div>
+
+        <!-- Модальное окно Rebate Center -->
+        <div id="rebateModal" class="modal">
+            <div class="modal-content">
+                <ecr-rebate-center-widget id="rcWidget"></ecr-rebate-center-widget>
+                <button onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Подключаем виджеты EcoRebates -->
+    <script src="https://static.ecorebates.com/widgets/noritz/widgets.js" async></script>
+
+    <script>
+        async function checkRebates() {
+            const zip = document.getElementById('zipInput').value;
+            
+            try {
+                // Определяем страну по длине ZIP-кода (упрощенная логика)
+                const country = zip.length <= 5 ? 'US' : 'CA';
+                
+                // Формируем URL для API запроса
+                const apiUrl = new URL('https://noritz.ecorebates.com/api/search/noritz/productRebateDetails.json');
+                apiUrl.searchParams.append('zip', zip);
+                if(country === 'CA') apiUrl.searchParams.append('c', 'CA');
+
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if(data.error) {
+                    alert('Error: ' + data.error.message);
+                    return;
+                }
+
+                // Рассчитываем максимальную скидку и общее количество
+                let maxRebate = 0;
+                let totalRebates = 0;
+                
+                data.productRebateDetails.forEach(product => {
+                    const rebateAmount = parseFloat(product.maxRebateAmountLabel.replace(/[^\d.]/g, ''));
+                    if(rebateAmount > maxRebate) maxRebate = rebateAmount;
+                    totalRebates += product.rebatePrograms.length;
+                });
+
+                // Обновляем баннер
+                document.getElementById('rebateBanner').style.display = 'block';
+                document.getElementById('maxAmount').textContent = maxRebate;
+                document.getElementById('totalRebates').textContent = totalRebates;
+                document.getElementById('location').textContent = data.area || 'your area';
+
+            } catch (error) {
+                alert('Error checking rebates: ' + error.message);
+            }
+        }
+
+        function showRebateCenter() {
+            const zip = document.getElementById('zipInput').value;
+            const widget = document.getElementById('rcWidget');
+            
+            // Обновляем виджет с текущим ZIP-кодом
+            widget.setAttribute('zip', zip);
+            document.getElementById('rebateModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('rebateModal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
